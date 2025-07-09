@@ -1,0 +1,692 @@
+---
+title: "Study1 and Study2"
+author: "LTH"
+date: "2025-05-27"
+output: html_document
+---
+load the required packages.
+```{r}
+rm(list = ls())
+
+library(tidyverse)
+library(patchwork)
+library(colorspace) 
+library(Cairo)
+library(bruceR)
+library(ggstatsplot)
+library(ggcorrplot)
+
+```
+
+First, perform data cleaning for the 'MFTM - A' program.
+```{r}
+rm(list = ls())
+dir <- getwd()
+dir <- paste(dir,'MFTM_A_DATA',sep = '/')
+  if (!dir.exists(dir)){
+    dir.create(dir)
+  } else {
+    print("Dir already exists!")
+  }
+
+dir2 <-  paste(dir,'Total',sep = '/')
+  if (!dir.exists(dir2)){
+    dir.create(dir2)
+  } else {
+    print("Dir already exists!")
+  }
+files = list.files('E:\\Task\\renwumen\\psychopy\\MFTM_A_Final\\data',pattern = 'csv',full.name = TRUE
+                   , recursive = TRUE)
+fileid = str_extract_all(files,'(?<=/)([^_]+_){7}[^_]+(?=\\.)')
+
+for ( i in 1:length(files)){
+
+  MFTM_A <- read_csv(files[i],col_select = c('participant','session','CCC','ET','key_resp_9.corr','key_resp_9.rt',
+                                             'trials_2.thisN','orientation3','block_type','key_resp_9.keys') )
+  
+  MFTM_A <- MFTM_A %>%  drop_na() %>% mutate(ntrials = trials_2.thisN +1) %>% select(-c(trials_2.thisN))
+  MFTM_A$key_resp_9.corr[MFTM_A$key_resp_9.corr>=2] <- 1#Reset multiple key presses to 1.
+  MFTM_A$session <- as.double(MFTM_A$session)
+  MFTM_A2 <- MFTM_A
+  
+  
+  store_csv = paste(fileid[i],"_new.csv",sep = '') 
+  store_csv2 = paste(dir,store_csv,sep = '/') 
+  store_pdf=paste(fileid[i],".pdf",sep = '')
+  store_pdf2=paste(dir,store_pdf,sep = '/')
+  store_cs = paste(fileid[i],"_total_cor.csv",sep = '') 
+  store_csv1 = paste(dir2,store_cs,sep = '/') 
+
+  ## Descriptive statistics - Total accuracy rate.
+  sum_mean_total <- MFTM_A %>% 
+    group_by(participant,session)  %>%
+    summarise(
+      Total_mean_rt = mean(key_resp_9.rt),
+      Total_mean_acc = mean(key_resp_9.corr),
+      Total_mean_sd = sd(key_resp_9.rt)
+    )
+  
+  
+  write_csv(MFTM_A2,path = store_csv2,col_names = TRUE) 
+  # MFTM_A$total_resp[MFTM_A$total_resp == 1] <- 1
+  # MFTM_A$total_resp[MFTM_A$total_resp == 0] <- 0
+  ## Data cleaning: exclude trials with no response, reset trials with multiple key presses, exclude data beyond three standard deviations from the mean.
+  # Exclusion criteria: response rate below 90 percent.
+  # Trials with no key presses are treated as incorrect responses and excluded from RT analysis.
+ MFTM_A <-  MFTM_A %>% filter(key_resp_9.keys != 'None')#排除没有按键的试次
+  total_resp_meanrt <- MFTM_A$key_resp_9.rt %>% mean()
+  total_resp_sdrt <- MFTM_A$key_resp_9.rt %>% sd()
+  
+ #Remove the data of correct responses outside three standard deviations. Since reaction time isn't the main indicator here, this step isn't applied to the following files
+  MFTM_A <-  MFTM_A %>% filter(key_resp_9.rt <= total_resp_meanrt + 3*total_resp_sdrt & 
+                                 key_resp_9.rt >= total_resp_meanrt - 3*total_resp_sdrt)
+  sumdata_err_rig <- MFTM_A  %>% filter(key_resp_9.corr == 1) %>% group_by(participant,session) %>%
+    summarise(
+      mean_rt = mean(key_resp_9.rt),
+      sd_rt = sd(key_resp_9.rt)
+    )
+  
+  sum_mean_total <- sum_mean_total %>% full_join(sumdata_err_rig,by = c('participant','session'))
+  
+  write_csv(sum_mean_total,path = store_csv1,col_names = TRUE) 
+  
+  # Right_Resp_rt <- MFTM_A %>% group_by(participant,session,total_resp)  %>% summarise(
+  #   mean_rt = mean(total_resp_9_10),
+  #   sd_rt = sd(total_resp_9_10)
+  # ) %>% mutate(Acc_total)
+  ## CCC\ET Strategy selection.
+  
+  ## Save image.
+  print(i)
+}
+```
+Second, carry out data cleaning for the ANT program.
+```{r}
+rm(list = ls())
+dir <- getwd()
+dir <- paste(dir,'ANT_DATA',sep = '/')
+  if (!dir.exists(dir)){
+    dir.create(dir)
+  } else {
+    print("Dir already exists!")
+  }
+
+dir2 <-  paste(dir,'Total',sep = '/')
+method=c("Total")
+for(sub_dir in method){
+  output_dir=file.path(dir,sub_dir)
+  #print(output_dir)
+  if (!dir.exists(output_dir)){
+    dir.create(output_dir)
+  } else {
+    print("Dir already exists!")
+  }
+}
+dir3 <- paste(dir,'spec',sep = '/')
+dir.create(dir3)
+files = list.files('E:\\Task\\renwumen\\psychopy\\ANT0\\data',pattern = 'csv',full.name = TRUE
+                   , recursive = TRUE)
+fileid = str_extract_all(files,'(?<=/)([^_]+_){3}[^_]+')
+for ( i in 1:length(files)){
+  ANT <- read_csv(files[i],col_select = c('participant','session','TrialType','FlankerType','WarningType',
+                                             'key_resp_5.keys','TargetType','TargetDirection',
+                                             'key_resp_5.corr','key_resp_5.rt') )
+  ANT <- ANT %>%  drop_na(key_resp_5.corr)
+  # ANT[i] <- lapply(ANT[i],FUN = function(y){as.double(y)})
+  store_csv = paste(fileid[i],"_a_error.csv",sep = '') 
+  store_csv2 = paste(dir,store_csv,sep = '/') 
+  store_c = paste(fileid[i],"_a_rt.csv",sep = '') 
+  store_c1 = paste(dir,store_c,sep = '/') 
+  store_cs = paste(fileid[i],"_b_c.csv",sep = '') 
+  store_csv1 = paste(dir2,store_cs,sep = '/') 
+  
+  #Check the validity of experimental data in trials where TrialType equals 1.
+  check_data <-  sum(ANT$TrialType[ANT$key_resp_5.rt == c("None")])/sum(ANT$TrialType)
+  if(is.na(check_data)==TRUE){
+    check_data <- 0
+  }
+  ANT$key_resp_5.rt[is.na(ANT$key_resp_5.rt)] <- 0
+  countall <- ANT %>% group_by(participant) %>% summarise(countall = n())
+ # write_csv(ANT,path = store_csv2,col_names = TRUE)
+  if (check_data<0.1){
+  ## Overall error rate : the number of trials with key_resp_5.corr equal to 0, regardless of condition, divided by the total number of trials.
+    overall_error_rate <-   1-mean(ANT$key_resp_5.corr)
+  ## Overall average reaction time: after outlier removal in each experimental condition.
+    count_er <- ANT %>% filter(key_resp_5.corr==1) %>% summarise(count_er = n())
+    ANT_exculde <- ANT %>% filter(key_resp_5.corr==1) %>% group_by(WarningType,FlankerType) %>% filter(abs(key_resp_5.rt-mean(key_resp_5.rt)) < 
+                                                     3 * sd(key_resp_5.rt))
+    count_3 <- ANT_exculde %>% group_by(participant) %>% summarise(count_3 = n())
+    overall_RT <- mean(ANT_exculde$key_resp_5.rt[ANT_exculde$key_resp_5.corr==1]) 
+    overall_RT_sd <-  sd(ANT_exculde$key_resp_5.rt[ANT_exculde$key_resp_5.corr==1])
+  ## Analysis index for each experimental condition (single participant, single session).
+  # Error rate: the number of trials where key_resp_5.corr is 0 in each experimental condition divided by the total number of trials.
+    error_rate <- ANT %>% group_by(WarningType,FlankerType) %>% summarise(
+      error_rate = 1-mean(key_resp_5.corr)
+    )
+    RT <- ANT_exculde %>% group_by(WarningType,FlankerType,key_resp_5.corr) %>%
+      summarise(
+      error_mean_rt = mean(key_resp_5.rt),
+      error_sd_rt = sd(key_resp_5.rt)
+    )
+    write_csv( error_rate,path = store_csv2,col_names = TRUE)
+    write_csv(  RT,path = store_c1,col_names = TRUE)
+  ## Analysis of index attention network effects (higher values indicate worse function):
+    Warning_sum <- ANT %>% group_by(WarningType) %>% summarise(
+      error_rate_warning = 1-mean(key_resp_5.corr)
+    )
+
+    #The indices of the attention network effects (higher values indicate worse function) are calculated for each individual and each experimental condition using the method in c:a.
+    ## Alerting : no cue - center cue; the larger the effect size, the higher the efficiency of the participant's alerting network
+    Alerting_error_rate <- Warning_sum$error_rate_warning[Warning_sum$WarningType == 'no'] -
+      Warning_sum$error_rate_warning[Warning_sum$WarningType == 'center']
+    RT_alerting <- ANT_exculde %>% group_by(participant,WarningType) %>% filter(key_resp_5.corr==1) %>% 
+      summarise(
+        error_mean_rt_alerting = mean(key_resp_5.rt),
+      )
+    Alerting_rt <- RT_alerting$error_mean_rt_alerting[RT_alerting$WarningType=='no'] - 
+      RT_alerting$error_mean_rt_alerting[RT_alerting$WarningType=='center']
+    ## Orienting：center cue – spatial cue；The larger the effect size, the higher the efficiency of the participant's orientation network.
+    Orienting_error_rate <- Warning_sum$error_rate_warning[Warning_sum$WarningType == 'center'] -
+      Warning_sum$error_rate_warning[Warning_sum$WarningType == 'spatial']
+    Orienting_rt <- RT_alerting$error_mean_rt_alerting[RT_alerting$WarningType=='center'] - 
+      RT_alerting$error_mean_rt_alerting[RT_alerting$WarningType=='spatial']
+    ## executive control：IC – C；The larger the effect size, the worse the efficiency of the participant's executive control network.
+    EC_sum <- ANT %>% group_by(FlankerType) %>% summarise(
+      error_rate_ec = 1-mean(key_resp_5.corr)
+    )
+    RT_ec <- ANT_exculde %>% group_by(participant,FlankerType) %>% filter(key_resp_5.corr==1) %>% 
+      summarise(
+        error_mean_rt_ec = mean(key_resp_5.rt)
+      )
+    executive_control_error_rate <- EC_sum$error_rate_ec[EC_sum$FlankerType=='IC'] - 
+      EC_sum$error_rate_ec[EC_sum$FlankerType=='C']
+    executive_control_rt <- RT_ec$error_mean_rt_ec[RT_ec$FlankerType=='IC'] - 
+      RT_ec$error_mean_rt_ec[RT_ec$FlankerType=='C']
+
+    store_ = paste(fileid[i],".csv",sep = '') 
+    store_csv6 = paste(dir3,store_,sep = '/')
+    ccc <- right_join( RT_alerting,RT_ec,by='participant')
+    
+    write_csv(ccc,path = store_csv6,col_names = TRUE)
+    
+    
+    if(length(executive_control_rt)==0 ){
+      executive_control_error_rt <- 0
+    }
+    if(length(executive_control_error_rate)==0){
+      executive_control_error_rate <- 0
+    }
+    if(length(Alerting_rt)==0){
+      Alerting_rt <- 0
+    }
+    if(length(Alerting_error_rate)==0){
+      Alerting_error_rate <- 0
+    }
+    if(length(Orienting_rt)==0){
+      Orienting_rt <- 0
+    }
+    if(length(Orienting_error_rate)==0){
+      Orienting_error_rate <- 0
+    }
+    if(length(overall_error_rate)==0){
+      overall_error_rate <- 0
+    }
+    if(length(overall_RT_sd)==0){
+      overall_RT_sd <- 0
+    }
+    if(length(overall_RT)==0){
+      overall_RT <- 0
+    }
+        subject <- ANT[1,1] 
+    b_c_sign <- bind_cols(subject, overall_RT=overall_RT,overall_RT_sd=overall_RT_sd,overall_error_rate=overall_error_rate,
+                         Orienting_error_rate=Orienting_error_rate, Orienting_rt=Orienting_rt,Alerting_error_rate=Alerting_error_rate,
+                        Alerting_rt=Alerting_rt,executive_control_error_rate=executive_control_error_rate,
+                        executive_control_rt=executive_control_rt,nall = countall,count_er=count_er,count_3=count_3)
+
+spec(b_c_sign)
+    write_csv( b_c_sign,path = store_csv1,col_names = TRUE)
+print(i)
+  }
+}
+```
+Data cleaning for the GO - NOGO task.
+```{r}
+rm(list = ls())
+dir <- getwd()
+dir <- paste(dir,'Go_DATA',sep = '/')
+  if (!dir.exists(dir)){
+    dir.create(dir)
+  } else {
+    print("Dir already exists!")
+  }
+
+dir2 <-  paste(dir,'Total',sep = '/')
+files = list.files('E:\\Task\\renwumen\\psychopy\\go\\GONOGO-fmri\\GONOGO-fmri\\data',pattern = 'csv',full.name = TRUE
+                   , recursive = TRUE)
+fileid = str_extract_all(files,'(?<=/)([^_]+_){3}[^_]+')
+method=c("Total")
+for(sub_dir in method){
+  output_dir=file.path(dir,sub_dir)
+  #print(output_dir)
+  if (!dir.exists(output_dir)){
+    dir.create(output_dir)
+  } else {
+    print("Dir already exists!")
+  }
+}
+dir3 <- paste(dir,'Go_DATA_count',sep = '/')
+  if (!dir.exists(dir3)){
+    dir.create(dir3)
+  } else {
+    print("Dir already exists!")
+  }
+
+
+for ( i in 1:length(files)){
+  Go <- read_csv(files[i],col_select = c('participant','session','TrialType','Path','Correct','key_resp_9.keys',
+                                             'key_resp_9.corr','key_resp_9.rt') )
+  Go <- Go %>%  drop_na(Path) %>% mutate(count = 1)
+  Go$key_resp_9.rt[is.na(Go$key_resp_9.rt)] <- 0
+  store_csv = paste(fileid[i],"_new.csv",sep = '') 
+  store_csv2 = paste(dir,store_csv,sep = '/') 
+  store_cs = paste(fileid[i],"_total_cor.csv",sep = '') 
+  store_csv1 = paste(dir2,store_cs,sep = '/') 
+  write_csv(Go,path = store_csv2,col_names = TRUE)
+  
+  Go2 <- Go %>% filter(TrialType == 'go')
+      count3 <- Go2 %>% group_by(participant)  %>% summarise(
+    countgo = n()
+  )
+    count1 <- Go2 %>% group_by(participant) %>% filter(key_resp_9.corr==1) %>% summarise(count_go_rig = n())
+  Go2 <- Go2 %>% group_by(participant) %>% filter(key_resp_9.corr==1) %>% filter(abs(key_resp_9.rt-mean(key_resp_9.rt)) < 
+                                                    3 * sd(key_resp_9.rt))
+count4 <- Go2 %>% group_by(participant)  %>% summarise(count_3sd = n())
+  count2 <- Go %>% group_by(participant)  %>% summarise(
+    countall = n()
+  )
+
+  
+count <- count2 %>% full_join(count3,by='participant') %>% full_join(count1,by='participant')%>% full_join(count4,by='participant')
+##
+  write_csv(Go2,path = store_csv1,col_names = TRUE)
+    store = paste(fileid[i],"_count.csv",sep = '') 
+  store_1 = paste(dir3,store,sep = '/') 
+   write_csv(count,path = store_1,col_names = TRUE)
+}
+
+```
+Conduct data cleaning for the n - back task.
+```{r}
+rm(list = ls())
+dir <- getwd()
+dir <- paste(dir,'N_back_DATA',sep = '/')
+  if (!dir.exists(dir)){
+    dir.create(dir)
+  } else {
+    print("Dir already exists!")
+  }
+
+dir2 <-  paste(dir,'Total',sep = '/')
+files = list.files('E:\\Task\\renwumen\\psychopy\\空间任务-nback\\data',pattern = 'csv',full.name = TRUE
+                   , recursive = TRUE)
+fileid = str_extract_all(files,'(?<=/)([^_]+_){3}[^_]+')
+
+method=c("Total")
+for(sub_dir in method){
+  output_dir=file.path(dir,sub_dir)
+  #print(output_dir)
+  if (!dir.exists(output_dir)){
+    dir.create(output_dir)
+  } else {
+    print("Dir already exists!")
+  }
+}
+
+dir3 <- paste(dir,'N_back_DATA_count',sep = '/')
+  if (!dir.exists(dir3)){
+    dir.create(dir3)
+  } else {
+    print("Dir already exists!")
+  }
+
+for ( i in 1:length(files)){
+  N_back <- read_csv(files[i],col_select = c('participant','back','number','corrAns','key_resp_5.keys',
+                                             'key_resp_5.corr','key_resp_5.rt') )
+  N_back <- N_back %>%  drop_na(key_resp_5.corr)
+  
+  store_csv = paste(fileid[i],"_new.csv",sep = '') 
+  store_csv2 = paste(dir,store_csv,sep = '/') 
+  store_cs = paste(fileid[i],"_total_cor.csv",sep = '') 
+  store_csv1 = paste(dir2,store_cs,sep = '/') 
+    store = paste(fileid[i],"_count.csv",sep = '') 
+  store_1 = paste(dir3,store,sep = '/') 
+  ## Data cleaning: exclude trials with no response, reset trials with multiple key presses, exclude data beyond three standard deviations from the mean.
+  N_back <-  N_back %>% filter( corrAns != c("None"))#选择n-back除却开始的试次
+  N_back$key_resp_5.rt[is.na(N_back$key_resp_5.rt)] <- 0
+  write_csv(N_back,path = store_csv2,col_names = TRUE)
+  
+  sum_mean_total <- N_back %>% group_by(participant,back) %>% summarise(
+    Total_mean_rt = mean(key_resp_5.rt),
+    Total_sd_rt = sd(key_resp_5.rt),
+    Total_mean_cor = mean(key_resp_5.corr)
+  )
+  
+  
+  
+  count1 <- N_back %>% group_by(participant) %>% summarise(nall = n())
+  count2 <- N_back %>% group_by(participant)%>%filter(key_resp_5.corr==1) %>% summarise(nright = n())
+
+  N_back2 <- N_back %>%filter(key_resp_5.corr==1) %>% group_by(back) %>% filter(abs(key_resp_5.rt-mean(key_resp_5.rt)) < 
+                                         3 * sd(key_resp_5.rt))
+  count3 <- N_back2 %>% group_by(participant) %>% summarise(n3sd = n())
+  count <- count1 %>% full_join(count2,by='participant') %>% full_join(count3,by='participant') 
+    write_csv(count,path = store_1,col_names = TRUE)
+  sumdata_err_rig <- N_back2 %>% group_by(participant,back) %>% summarise(
+    mean_rt = mean(key_resp_5.rt),
+    sd_rt = sd(key_resp_5.rt)
+  )
+  sum_mean_total <- sum_mean_total %>% full_join(sumdata_err_rig,by = c('participant','back'))
+  write_csv(sum_mean_total,path = store_csv1,col_names = TRUE)
+  # N_back <- N_back0 %>% full_join(N_back1,by = 'back') %>%  full_join(N_back2,by = 'back')
+
+  # Right_Resp_rt <- MFTM_A %>% group_by(participant,session,total_resp)  %>% summarise(
+  #   mean_rt = mean(total_resp_9_10),
+  #   sd_rt = sd(total_resp_9_10)
+  # ) %>% mutate(Acc_total)
+}
+```
+加载数据，并选择数据进行分析
+```{r}
+dir <- paste('D:/桌面/ET/R','MFTM_A_DATA',sep = '/')
+dir2 <-  paste('D:/桌面/ET/R/ANT_DATA','Total',sep = '/')
+dir3 <-  paste('D:/桌面/ET/R/Go_DATA','Go_DATA_count',sep = '/')
+dir4 <-  paste('D:/桌面/ET/R/N_back_DATA','N_back_DATA_count',sep = '/')
+
+sumlist1 <- list.files(dir,pattern = 'csv',full.name = TRUE
+                      , recursive = FALSE)
+sumlist2 <- list.files(dir2,pattern = 'csv',full.name = TRUE
+                      , recursive = FALSE)
+sumlist3 <- list.files(dir3,pattern = 'csv',full.name = TRUE
+                      , recursive = FALSE)
+sumlist4 <- list.files(dir4,pattern = 'csv',full.name = TRUE
+                      , recursive = FALSE)
+MFTM  <- map_dfr(sumlist1,~read_csv(.x))
+ANT  <- map_dfr(sumlist2,~read_csv(.x))
+Go  <- map_dfr(sumlist3,~read_csv(.x))
+N_BACK  <- map_dfr(sumlist4,~read_csv(.x))
+```
+Data processing and plotting for study 1.
+```{r}
+# Select participants for Study 1.
+subject <- seq(11001,11046)
+MFTM1 <- MFTM %>% filter(participant %in% subject) 
+N_BACK1 <- N_BACK %>% filter(participant %in% subject)
+
+# Conduct calculations and format conversions for go, n - back, and mftm - a.
+go_sum <- go  %>% group_by(participant,TrialType,key_resp_9.corr)  %>% summarise(
+  RT = mean(key_resp_9.rt),
+  Acc = sum(count)
+)
+N_BACK1 <- N_BACK1[-c(4,7)]
+N_BACK2 <- N_BACK1 %>% pivot_wider(
+  names_from = back,
+  values_from = c(mean_rt,Total_mean_cor,Total_mean_rt),
+  names_glue = 'b{back}_{.value}'
+)
+N_BACK2 <- N_BACK2 %>% mutate(back20 = b2_Total_mean_cor-b0_Total_mean_cor,back21 = b2_Total_mean_cor-b1_Total_mean_cor,back10 = b1_Total_mean_cor-b0_Total_mean_cor)
+```
+
+```{r}
+dir5 <-  paste('D:/桌面/ET/R','Go_DATA',sep = '/')
+sumlist5 <- list.files(dir5,pattern = 'csv',full.name = TRUE
+                      , recursive = FALSE)
+go  <- map_dfr(sumlist5,~read_csv(.x))
+
+# Calculate d’ for the go - nogo task.
+
+hit_rate <- go %>% group_by(participant) %>% filter(TrialType=='go')%>% summarise(
+  hr = mean(key_resp_9.corr)
+)  # Hit rate under the GO condition.
+false_alarm_rate <- go %>% group_by(participant) %>% filter(TrialType=='nogo')%>% summarise(
+  far =1- mean(key_resp_9.corr)
+)  # False alarm rate under the NOGO condition.
+
+# To avoid problems with extreme values, adjust the rate to a computable range.
+adjust_rate_column <- function(df, column_name) {
+  # Make sure the specified columns are present in the data frame.
+  if (!column_name %in% names(df)) {
+    stop("The specified column names are not present in the data frame.")
+  }
+  
+  # Define an adjustment function.
+  adjust_rate <- function(rate) {
+    if (rate == 1) {
+      return(1 - 1e-10)  # Adjust 1.0 to 0.99.
+    } else if (rate == 0) {
+      return(1e-10)  # Adjust 0.0 to 0.01.
+    } else {
+      return(rate)
+    }
+  }
+  
+  # Apply the adjustment function to each value in the specified column.
+  df[[column_name]] <- sapply(df[[column_name]], adjust_rate)
+
+  return(df)
+}
+
+
+# Adjust Hit Rate and False Alarm Rate
+hit_rate <- adjust_rate_column(hit_rate,'hr')
+false_alarm_rate <- adjust_rate_column(false_alarm_rate,'far')
+
+# Calculate the Z-score.
+z_hit <-hit_rate %>% mutate(z_hit = qnorm(hr)) 
+z_false_alarm <-false_alarm_rate %>% mutate(z_false_alarm = qnorm(far))
+z <- full_join(z_hit,z_false_alarm,by='participant')
+# 计算d'
+d_prime <- z %>% group_by(participant)%>%summarise(
+  d = z_hit - z_false_alarm
+) 
+
+# Print the result.
+cat("d':", d_prime$d, "\n")
+
+################################ How to calculate d prime in the n - back task.
+# In the n - back task, d prime can be calculated by treating back - located trials as target trials and current - location trials as non - target trials. Hit rate is based on accuracy in 2 - back trials, while false alarm rate is based on accuracy in current - location judgments (used as false alarm rate).
+# 
+# # Determine target trials.
+# is_target <- function(trial_data, condition) {
+#   if (condition == "2-back") {
+#     return(trial_data$position %in% lag(trial_data$position, 2))
+#   } else if (condition == "1-back") {
+#     return(trial_data$position %in% lag(trial_data$position, 1))
+#   } else if (condition == "0-back") {
+#     return(trial_data$position %in% target_positions$`0-back`)
+#   } else {
+#     stop("Invalid condition")
+#   }
+# }
+# 
+# # Calculate the hit rate and false alarm rate.
+# calculate_rates <- function(trial_data, condition) {
+#   trial_data$target <- is_target(trial_data, condition)
+#   
+#   # Target trials.
+#   target_trials <- subset(trial_data, target == TRUE)
+#   hit_rate <- mean(target_trials$response == "correct")
+#   
+#   # Non - target trials.
+#   non_target_trials <- subset(trial_data, target == FALSE)
+#   false_alarm_rate <- mean(non_target_trials$response == "incorrect")
+#   
+#   return(c(hit_rate = hit_rate, false_alarm_rate = false_alarm_rate))
+# }
+# 
+# # Calculate hit and false alarm rates for each n - back condition.
+# results_2back <- calculate_rates(trials, "2-back")
+# results_1back <- calculate_rates(trials, "1-back")
+# results_0back <- calculate_rates(trials, "0-back")
+
+```
+Analyze each task individually and then perform correlation analysis.
+```{r}
+# MFTM
+MFTM1$session[MFTM1$session==001] <- c('PreTest')
+MFTM1$session[MFTM1$session==002] <- c('PostTest')
+# Plot average line charts and bar chart distributions.
+plotmeanCCC_trials <- MFTM1 %>% group_by(session,ntrials) %>% summarise(meanCCC = mean(CCC),seCCC = sd(CCC)/sqrt(46),
+                                                                        meanET = mean(ET),seET = sd(ET)/sqrt(46),
+                                                                        meanRT = mean(key_resp_9.rt),seRT = sd(key_resp_9.rt)/sqrt(46))
+ggplot(data=plotmeanCCC_trials,aes(x=ntrials,y=meanRT))+
+  annotate(geom = "rect",xmin=120,xmax=200,ymin=-Inf,ymax=Inf,fill="gray",alpha=0.5)+
+  geom_vline(xintercept = 120,lty="dashed",size=1,color="black")+
+  geom_point(size=0.55,aes(color=session))+#
+  geom_line(aes(color=session),size=0.9)+  #aes(color=session),
+  # geom_errorbar(aes(ymin=meanCCC-sdCCC,
+  #                   ymax=meanCCC+sdCCC,
+  #                   color=c),
+  #               width=0.5,
+  #               size=0.1)+
+  geom_ribbon(aes(ymin=meanRT-seRT,ymax=meanRT+seRT,fill=session),
+                   
+              alpha=0.3,
+              show.legend = FALSE)+
+  scale_x_continuous(limits = c(0,200),
+                     breaks = seq(0,200,20),
+                     minor_breaks = seq(1,200,20),
+                     expand = expansion(mult=c(0,0.05)))+
+  scale_y_continuous(limits = c(0,3),
+                     breaks = seq(0,3,by=0.5),
+                     expand=expansion(mult=c(0,0)))+
+
+  scale_color_manual(values = c(
+                                "PostTest"="#008c00","PreTest"="#f68a15"))+
+  scale_fill_manual(values = c(
+    "PostTest"="#008c00","PreTest"="#f68a15"))+
+  theme_classic()+
+  theme(axis.text.x = element_text(size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.line.x = element_line(linewidth = 1),
+        axis.line.y = element_line(linewidth  = 1),
+        legend.text = element_text(size = 18),
+        legend.title = element_text(size = 18),
+        axis.title = element_text(size = 18))
+ggsave('meanRT.pdf',width = 2160,height = 1440,units = 'px')
+
+##频数直方图 
+plot2 <- MFTM1 %>% filter(ntrials==200)
+plot2 <- MFTM1 %>% filter(ntrials>=150) %>% group_by(participant,session) %>% summarise(CCC = mean(CCC),ET = mean(ET))
+plot2 %>% group_by(session) %>% summarise(mean = mean(CCC))
+CairoPDF('pic2b_1.pdf',family='Arial')
+  ggplot(plot2,aes(CCC,fill=session))+
+   # geom_histogram(data = ACC,aes(y=..count..),breaks = seq(1.75,4.25,0.25),alpha=0.5,bins = 50,color='black',position='identity')+
+ geom_histogram(data = filter(plot2,session=='PreTest'),aes(y=after_stat(count)),breaks = seq(1.5,4,0.25),bins = 160,alpha=0.8,color='black')+#,
+                # col = 1)+#Group the x-axis from 10 to 45 with a bin width of 3, and fill with color *(-1).
+  # lims(x = c(1.5,5),y = c(0,4))+geom_histogram(data = filter(ACC,session=='前测'),breaks = seq(1.5,4,0.25),aes(fill=session),bins = 160,alpha=0.4)+#
+   geom_histogram(data = filter(plot2,session=='PostTest'),aes(y=after_stat(count)),breaks = seq(1.5,4,0.25),bins = 160,alpha=0.65,color='black')+#
+    theme_classic() +#Black and white theme.
+    scale_fill_manual(values = c( "PostTest"="#008c00","PreTest"="#f68a15"))+
+    scale_y_continuous(limits = c(0,14),
+                       breaks = seq(0,14,2),
+                       labels = abs(seq(0,14,2)))+
+# facet_wrap(~session,scales = 'fixed')+
+  labs(y = 'Count' , x = 'CCC (bit/s)',
+     #  caption = '范式：MFTM-A',
+       tag = 'b')+
+    theme(#legend.title = element_blank(),
+          #legend.position = 'none',
+          axis.title.x = element_text(margin = margin(t = 5), size = 15,face = "bold",family = 'sans'),
+          axis.title.y = element_text(margin = margin(r = 5), size = 15,face = "bold",family = 'sans'),
+          plot.margin = margin(r=30,b=10,l=10),
+          legend.text = element_text(size = 15,family = 'sans'),
+          )+
+   # geom_hline(yintercept = 0,linetype=1,cex=0.6)+
+   # annotate('text',x=4,y=4,label='前测',color='red',alpha=1.7,size=8,family='sans')+
+   # annotate('text',x=4,y=3.5,label='后测',color='#00BFC4',alpha=0.8,size=8,family='sans')+
+    # annotate('segment',x=2.76,xend = 2.76,y=0,yend = 14,linetype=2,size=1,color='orange')+
+    # annotate('segment',x=2.84,xend = 2.84,y=0,yend = 14,linetype=2,size=1,color='green')
+    geom_segment(data = filter(plot2,session=='PreTest'),aes(x=2.77,xend = 2.76,y=0,yend = 14),linetype=2,size=1,color='orange')+
+  geom_segment(data = filter(plot2,session=='PostTest'),aes(x=2.85,xend = 2.84,y=0,yend = 14),linetype=2,size=1,color='green')
+  ggsave('CCCb.pdf',width = 2160,height = 1440,units = 'px')
+dev.off()
+
+ACC2 <- MFTM1 %>% group_by(participant,session) %>% summarise(
+  acc = mean(key_resp_9.corr)
+)
+
+CairoPDF('pic3a.pdf',family='Arial')
+ggplot(ACC2,aes(acc,fill=session))+
+  geom_histogram(data = filter(ACC2,session=='PreTest'),aes(y=after_stat(count)),breaks = seq(0.65,0.85,0.04),bins = 160,alpha=0.8,color='black')+#,
+  # col = 1) +  # Group the x-axis from 10 to 45 with a bin width of 3 and fill with color
+  # lims(x = c(1.5,5),y = c(0,4))+geom_histogram(data = filter(ACC,session=='前测'),breaks = seq(1.5,4,0.25),aes(fill=session),bins = 160,alpha=0.4)+#
+  geom_histogram(data = filter(ACC2,session=='PostTest'),aes(y=after_stat(count)),breaks = seq(0.65,0.85,0.04),bins = 160,alpha=0.65,color='black')+#
+  theme_classic() +#Black and white theme.
+      scale_fill_manual(values = c( "PostTest"="#008c00","PreTest"="#f68a15"))+
+  scale_y_continuous(limits = c(0,28),
+                     breaks = seq(0,28,4),
+                     labels = abs(seq(0,28,4)))+
+  facet_wrap(~session,scales = 'fixed')+
+  labs(y = 'Count' , x = 'Accuracy',
+       #  caption = '范式：MFTM-A',
+       tag = 'c')+
+  theme(legend.title = element_blank(),
+        #legend.position = 'none',
+        axis.title.x = element_text(margin = margin(t = 5), size = 15,face = "bold"),
+        axis.title.y = element_text(margin = margin(r = 5), size = 15,face = "bold"),
+        plot.margin = margin(r=30,b=10,l=10),
+        legend.text = element_text(size = 15),
+  )+
+      geom_segment(data = filter(plot2,session=='PreTest'),aes(x=0.748,xend = 0.748,y=0,yend = 27),linetype=2,size=1,color='orange')+
+  geom_segment(data = filter(plot2,session=='PostTest'),aes(x=0.752,xend = 0.752,y=0,yend = 27),linetype=2,size=1,color='green')
+ggsave('acc2.pdf',width = 2160,height = 1440,units = 'px')
+  # #geom_hline(yintercept = 0,linetype=1,cex=0.6)+
+  # annotate('text',x=0.748,y=6,label='前测',color='green',alpha=1.7,size=8,family='sans')+
+  # annotate('text',x=0.751,y=5.3,label='后测',color='#00BFC4',alpha=0.8,size=8,family='sans')
+dev.off()
+
+# Aggregate all data.
+
+MFTM_filter <- plot2 %>% select(participant,session,CCC,ET) %>% pivot_wider(
+  names_from = session,
+  values_from = c(CCC,ET),
+  names_glue = '{session}_{.value}'
+)
+
+all <- full_join(MFTM_filter,ANT,by = 'participant')
+all <- full_join(all,go_sum,by ='participant' )
+all <- full_join(all,d_prime,by ='participant' )
+all <- full_join(all,N_BACK2,by ='participant' )
+# all <- full_join(all,DDT,by ='participant' )
+write_csv(all,file = 'D:/桌面/ET/R/all.csv',col_names = TRUE)
+
+library(readxl)
+library(stargazer)
+library(psych)
+all <- read_excel("sss.xlsx")
+desc_table <- describe(all)
+stargazer(desc_table, type = "text", summary = FALSE, out = "desc_result.text")
+desc_df <- as.data.frame(desc_table)
+
+View(sss)
+MFTM_filter <- MFTM_filter[,-1]
+Y <- round(cor(MFTM_filter),3)
+p <- cor_pmat(MFTM_filter)
+
+all <- all[,-1]
+all <- all %>% select_if(is.numeric)
+Y <- round(cor(all),3)
+p <- cor_pmat(all)
+ggcorrplot(Y,hc.order = F,  #Reorder the matrix based on hierarchical clustering.
+           ggtheme = ggplot2::theme_void(base_size = 15), #Modify the theme
+           colors = c("CornflowerBlue","white","Salmon"), #Customize colors.
+           lab = F,lab_size = 5,    #Adjust the text size of the correlation coefficient.
+           tl.cex = 15,             #Axis tick font size.
+           p.mat = p,         #Add significance information.
+           sig.level = 0.05,        #Significance level.
+      #     pch = 10,                 #Mark insignificant color blocks; pch indicates different marking methods. Different numbers can be tried to see what marking methods they represent.
+          # pch.cex = 10,
+      insig = "blank",
+           type = 'upper')            #Mark the size of insignificant markers. Use insig = "blank" to handle insignificance by leaving it blank.
+ggsave('cor.pdf',width = 4000,height = 4000,units = 'px')
+```

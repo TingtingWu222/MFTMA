@@ -1,0 +1,859 @@
+---
+title: "Study3"
+author: "LTH"
+date: "2025-05-27"
+output: html_document
+---
+Data cleaning for Study3
+```{r}
+dir <- getwd()
+setwd(dir)
+files = list.files('D:/桌面/ET/R/858404285879422977_20240902192221/PsychoPy',pattern = 'csv',full.name = TRUE
+                   , recursive = TRUE)
+DCT_name <- list.files('D:/桌面/ET/R/858404285879422977_20240902192221/PsychoPy',pattern = 'csv',full.name = TRUE
+                      , recursive = TRUE)
+DCT <- map_dfr(DCT_name,~read_csv(.x))
+unique(DCT$name)
+DCT <- DCT %>% mutate(participant = 
+  case_when(
+    name == '聂时韵' ~ 11045,
+    name == "周熙童" ~ 11036,
+    name == "lga" ~ 11030,
+    name == "dyl" ~ 11037,
+    name == "wangjing" ~ 12014,
+    name == "金海波" ~ 11014,
+    is.na(name) ~ 11027,
+    name == "yang haoran" ~ 12002,
+    name == "ssf" ~ 12015,
+    name == "刘薇" ~ 11013,
+    name == "zyx" ~ 12008,
+    name == "wmj" ~ 12007,
+    name == "zjr" ~ 11025,
+    name == "Wu Yuqiang" ~ 12011,
+    name == "yanjiawen" ~ 11046,
+    name == "闫子晗"  ~ 11006,
+    name == "王芳珍" ~ 11003,
+    name == "王泽宇" ~ 12006,
+    name == "zuxin" ~ 11005,
+    name == "lvzhiqing" ~ 11023,
+    name == "李欣茹" ~ 11009,
+    name == "王妍蒙" ~ 11038,
+    name == "斯晗琪" ~ 12012,
+    name == "wanghaoran" ~ 11016,
+    name == "杨萍" ~ 12004,
+    name == "yangjiayi" ~ 11010,
+    name ==  "张仕琦" ~ 11033,
+    name == "杨涛" ~ 11019,
+    name == "sunyuying" ~ 11041,
+    name == "邱蔓霖" ~ 11039,
+    name == "苏朝晖"   ~ 11040,
+    name == "duzhiwen" ~ 11022,
+    name == "赵梓骏"  ~ 11034,
+    name == "吴振彤" ~ 11015,
+    name == "白小艾"  ~ 11043,
+    name == "yangxinran" ~ 12009,
+    name == "赵冲"  ~ 11031,
+    name == "赵梓旭"  ~ 12010,
+    name == "杨慧玲"  ~ 11017,
+    name == "周子豪"  ~ 12003,
+    name == "曹艳静" ~ 11011,
+    name ==  "刘萱"  ~ 11004,
+    name == "罗光睿" ~ 12005,
+    name == "刘梓淇" ~ 11002,
+    name == "徐青青" ~ 11042,
+    name == "常乐妍" ~ 11032,
+    name ==  "陈晓浚"   ~ 11035,
+  )
+)
+DCT1 <- DCT %>% select('participant','session','block_type','TrialNumber','FlankerConditionT1',
+                                         'LocationT1','DirectionT1','LocationConditionT1','CorrectAnswerT1','ImageT2',
+                                         'ConditionT1','IntervalT1toT2','FlankerConditionT2','LocationT2',
+                                         'DirectionT2','LocationConditionT2','CorrectAnswerT2','ConditionT2',
+                                         '注视点1','试次呈现时间+注视点2','注视点2','key_resp_T1.keys',
+                                         'key_resp_T1.corr','key_resp_T1.rt','key_resp_T2.keys','key_resp_T2.corr','key_resp_T2.rt','count')
+# pra_position <- which(DCT1$block_type == "pra")
+# 
+# for (pos in pra_position) {
+#   if (pos > 20) {
+#     DCT1 <- DCT1 %>% slice(-((pos - 19):(pos - 1)))
+#   }
+#   if (pos <= 20) {
+#     DCT1 <- DCT1 %>% slice(-(1:(pos-1)))
+#   }
+# }
+DCT1 <- DCT1 %>% filter(count>=17)
+count <- DCT1 %>% group_by(participant) %>% summarise(n = n())
+  DCT1 %>% group_by(participant) %>% summarise(n = n())
+  ## Set cases where T2 occurs before T1 as errors.
+  check <- DCT1 %>% filter(IntervalT1toT2 == 1000,key_resp_T1.rt - 1>key_resp_T2.rt) #  T1-1000 < T2
+  check2 <- DCT1 %>% filter(IntervalT1toT2 == 100,key_resp_T1.rt - 0.1 >key_resp_T2.rt)
+  DCT1 <- DCT1 %>%   mutate(key_resp_T1.corr =case_when(IntervalT1toT2==100&key_resp_T1.rt - 0.1 >= key_resp_T2.rt ~ 0,TRUE~key_resp_T1.corr),key_resp_T2.corr =case_when(IntervalT1toT2==100&key_resp_T1.rt - 0.1 >= key_resp_T2.rt ~ 0,TRUE~key_resp_T2.corr))
+  
+    ## Calculate error rates by condition: SOA\Flanker-T1 and T2.
+  ER <- DCT1 %>% group_by(participant,session,FlankerConditionT1,FlankerConditionT2,IntervalT1toT2) %>% summarise(
+    T1_ER= mean(key_resp_T1.corr)*100,
+    T2_ER = mean(key_resp_T2.corr)*100)
+## Remove trials with no key presses for T1 and T2.
+  DCT1 <- DCT1 %>% drop_na(key_resp_T1.rt) %>% drop_na(key_resp_T2.rt)
+## Remove cases where T2 occurs before T1.
+
+DCT_filter <- DCT1 %>% filter(IntervalT1toT2 == 100,key_resp_T1.rt - 0.1 <= key_resp_T2.rt)
+DCT_filter1 <- DCT1 %>% filter(IntervalT1toT2 == 1000)
+DCT2 <- DCT_filter1 %>% bind_rows(DCT_filter)
+
+
+  ## Remove trials where T2 occurs before T1, and calculate the average RT after excluding data beyond three standard deviations, selecting only trials where both tasks were correct.
+DCT_exclude1 <- DCT2 %>% filter(key_resp_T1.corr==1,key_resp_T2.corr==1)
+  DCT_exclude <- DCT2 %>% filter(key_resp_T1.corr==1,key_resp_T2.corr==1) %>% group_by(participant,session,FlankerConditionT1,IntervalT1toT2,FlankerConditionT2) %>% 
+    filter(abs(key_resp_T1.rt-mean(key_resp_T1.rt))<=sd(key_resp_T1.rt)*3,abs(key_resp_T2.rt-mean(key_resp_T2.rt))<=sd(key_resp_T2.rt)*3)
+  
+    RT <- DCT_exclude %>% group_by(participant,session,FlankerConditionT1,FlankerConditionT2,IntervalT1toT2) %>% summarise(
+    T1_mean_RT = mean(key_resp_T1.rt)*1000,
+    T2_mean_RT = mean(key_resp_T2.rt)*1000)
+x <- ER %>% full_join(RT,by = c('participant','session','FlankerConditionT1','FlankerConditionT2','IntervalT1toT2'))
+
+x$FlankerConditionT1[x$FlankerConditionT1=='congruent'] <- '1'
+x$FlankerConditionT1[x$FlankerConditionT1=='incongruent'] <- '2'
+x$FlankerConditionT2[x$FlankerConditionT2=='congruent'] <- '1'
+x$FlankerConditionT2[x$FlankerConditionT2=='incongruent'] <- '2' # C - 1;I - 2
+x$Task_condition <- paste(x$FlankerConditionT1,x$FlankerConditionT2,sep = '')
+x$IntervalT1toT2[x$IntervalT1toT2=='100'] <- '1'
+x$IntervalT1toT2[x$IntervalT1toT2=='1000'] <- '2' # 100 - 1;1000 - 2;
+t <- x %>% rename(A = FlankerConditionT1,B = FlankerConditionT2,C = IntervalT1toT2)
+t <- t %>% mutate(T1_IES=T1_mean_RT/T1_ER,T2_IES = T2_mean_RT/T2_ER)
+t <- t %>% mutate(T1_ER = 100 - T1_ER,T2_ER = 100 - T2_ER)
+t_T2 <- t[-c(2,10)]
+t1 <- t_T2 %>% 
+  tidyr::pivot_wider(
+    names_from = c('A','B','C'),
+    values_from = c('T1_mean_RT','T1_ER','T2_mean_RT','T2_ER','T1_IES','T2_IES'),
+    names_glue = "A{A}B{B}C{C}_{.value}"
+  )
+
+## Statistics. 
+result_T1RT <- MANOVA(t1, dvs="A1B1C1_T1_mean_RT:A2B2C2_T1_mean_RT", dvs.pattern="A(.)B(.)C(.)",
+                 within=c("A", "B", "C"))
+result_T2RT <- MANOVA(t1, dvs="A1B1C1_T2_mean_RT:A2B2C2_T2_mean_RT", dvs.pattern="A(.)B(.)C(.)",
+                 within=c("A", "B", "C"))
+result_T1ER <- MANOVA(t1, dvs="A1B1C1_T1_ER:A2B2C2_T1_ER", dvs.pattern="A(.)B(.)C(.)",
+                 within=c("A", "B", "C"))
+result_T2ER <- MANOVA(t1, dvs="A1B1C1_T2_ER:A2B2C2_T2_ER", dvs.pattern="A(.)B(.)C(.)",
+                 within=c("A", "B", "C"))
+result_T1IES <- MANOVA(t1, dvs="A1B1C1_T1_IES:A2B2C2_T1_IES", dvs.pattern="A(.)B(.)C(.)",
+                 within=c("A", "B", "C"))
+result_T2IES <- MANOVA(t1, dvs="A1B1C1_T2_IES:A2B2C2_T2_IES", dvs.pattern="A(.)B(.)C(.)",
+                 within=c("A", "B", "C"))
+
+
+
+t <- t %>% mutate(C = case_when(  C == '1' ~ '100',C == '2'~ '1000'),Task_condition = case_when(Task_condition == '11' ~ 'CC',Task_condition == '12'~'CI',Task_condition=='21'~'IC',Task_condition=='22'~'II'),A = case_when(A == '1' ~ 'C',A == '2'~'I'),B = case_when(B == '1' ~ 'C',B == '2'~'I'))
+# 
+ggplot(t, aes(x = interaction(C, Task_condition), y = T2_ER, fill = Task_condition, color = Task_condition)) +
+  # Add half - violin plots.
+  ggdist::stat_halfeye(adjust = 0.5,justification = -0.2,.width = 0,point_color = NA) +
+  # Add boxplots.
+  geom_boxplot(width = .1, alpha = 0.5,outlier.color = NA) +
+  # Add scatter plots.
+  ggdist::stat_dots(side = 'left',justification = 1.1,binwidth = .03) +
+  # Adjust colors and fill.
+  scale_color_manual(values = c("#90BFD6",'#F99FB5',"#3C7FB1","#F58F96")) +
+  scale_fill_manual(values = c("#90BFD6",'#F99FB5',"#3C7FB1","#F58F96")) +
+  # Flip the coordinate axis for better display.
+ # coord_flip() +
+  # Set the theme.
+  theme_classic() +
+    theme(axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 16),
+        axis.line.x = element_line(linewidth = 1),
+        axis.line.y = element_line(linewidth  = 1),
+        legend.text = element_text(size = 18),
+        legend.title = element_text(size = 18),
+        axis.title = element_text(size = 18))+
+  theme(panel.grid = element_blank())
+ggsave('T2ER_d.pdf',width = 2160,height = 1440,units = 'px')
+
+plotx <- t %>% group_by(C,Task_condition) %>% summarise(T1_RT = mean(T1_mean_RT),T1_sd_RT=sd(T1_mean_RT)/sqrt(47),T1_ACC = mean(T1_ER),T1_sd_ACC = sd(T1_ER)/sqrt(47),T2_RT = mean(T2_mean_RT),T2_sd_RT=sd(T2_mean_RT)/sqrt(47),T2_ACC = mean(T2_ER),T2_sd_ACC = sd(T2_ER)/sqrt(47),T1IES = mean(T1_IES),T1_sd_IES = sd(T1_IES)/sqrt(47),T2IES = mean(T2_IES),T2_sd_IES = sd(T2_IES)/sqrt(47))
+# plotx2 <- t %>% group_by(C,Task_condition) %>% summarise(T1_RT = mean(T1_mean_RT),T1_sd_RT=sd(T1_mean_RT),T1_ACC = mean(T1_ER),T1_sd_ACC = sd(T1_ER),T2_RT = mean(T2_mean_RT),T2_sd_RT=sd(T2_mean_RT),T2_ACC = mean(T2_ER),T2_sd_ACC = sd(T2_ER),T1_IES = mean(T1_IES),T1_sd_IES = sd(T1_IES),T2_IES = mean(T2_IES),T2_sd_IES = sd(T2_IES))
+
+as.factor(plotx$C)
+plotx <- plotx %>% rename(SOA = C)
+view(plotx)
+
+
+ggplot(plotx, aes(x = SOA, y = T1_RT,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(linewidth = 0.7,aes(ymin = T1_RT-T1_sd_RT,ymax =T1_RT+T1_sd_RT ),width = 0.4,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+    scale_y_continuous(limits = c(400,1300,200),
+                     breaks = seq(400,1300,200),
+                     labels = abs(seq(400,1300,200)))
+ggsave('T1RT.pdf',width = 2160,height = 1440,units = 'px')
+ggplot(plotx, aes(x = SOA, y = T1_ACC,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(aes(ymin = T1_ACC-T1_sd_ACC,ymax =T1_ACC+T1_sd_ACC ),width = 0.3,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+  ylim(0,14)
+ggsave('T1ER.pdf',width = 2160,height = 1440,units = 'px')
+ggplot(plotx, aes(x = SOA, y = T1IES,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(aes(ymin = T1IES-T1_sd_IES,ymax =T1IES+T1_sd_IES ),width = 0.3,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+  ylim(4,17)
+ggsave('T1IES.pdf',width = 2160,height = 1440,units = 'px')
+ggplot(plotx, aes(x = SOA, y = T2_RT,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(linewidth = 0.7,aes(ymin = T2_RT-T2_sd_RT,ymax =T2_RT+T2_sd_RT ),width = 0.4,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+    scale_y_continuous(limits = c(400,1300,200),
+                     breaks = seq(400,1300,200),
+                     labels = abs(seq(400,1300,200)))
+ggsave('T2RT.pdf',width = 2160,height = 1440,units = 'px')
+
+ggplot(plotx, aes(x = SOA, y = T2_ACC,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(aes(ymin = T2_ACC-T2_sd_ACC,ymax =T2_ACC+T2_sd_ACC ),width = 0.3,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid', 'dashed', 'solid', 'dashed'))+
+  ylim(0,14)
+ggsave('T2ER.pdf',width = 2160,height = 1440,units = 'px')
+ggplot(plotx, aes(x = SOA, y = T2IES,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(aes(ymin = T2IES-T2_sd_IES,ymax =T2IES+T2_sd_IES ),width = 0.3,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+  ylim(4,15)
+ggsave('T2IES.pdf',width = 2160,height = 1440,units = 'px')
+
+
+library(lme4)
+m1 <-  lmer(key_resp_T2.rt ~ FlankerConditionT1*FlankerConditionT2 * IntervalT1toT2 + (1 | participant),DCT_exclude)
+summary(m1)
+m1_coef <- coef(m1)
+m1_ranef <- ranef(m1)
+aaaa <- as_tibble(m1_ranef)
+ccc <-  as_tibble(m1_coef$participant)
+AIC(m1)
+BIC(m1)
+anova(m1)
+write_csv(aaaa,'D:/桌面/ET/R/DCT_randIntercept.csv',col_names = TRUE)
+
+# m2 <-  lmer(T2_mean_RT ~ Task_condition + (0 + Task_condition| participant),t)
+# summary(m2)
+# m2_coef <- coef(m2)
+# m2_ranef <- ranef(m2)
+# a2 <- as_tibble(m2_ranef$participant)
+```
+
+```{r}
+# rm(list = ls())
+
+dir <- getwd()
+dir <- paste(dir,'SS_clear_DATA',sep = '/')
+if (!dir.exists(dir)){
+  dir.create(dir)
+} else {
+  print("Dir already exists!")
+}
+
+dir2 <-  paste(dir,'SS_condtion_ER_RT',sep = '/')
+method=c("SS_condtion_ER_RT")
+for(sub_dir in method){
+  output_dir=file.path(dir,sub_dir)
+  #print(output_dir)
+  if (!dir.exists(output_dir)){
+    dir.create(output_dir)
+  } else {
+    print("Dir already exists!")
+  }
+}
+
+files = list.files('E:\\Task\\renwumen\\psychopy\\stroop_switch\\data',pattern = 'csv',full.name = TRUE
+                   , recursive = TRUE)
+
+fileid = str_extract_all(files,'(?<=/)([^_]+_){5}[^_]+')
+for (i in 1:length(files)){
+  SS <- read_csv(files[i],col_select = c('participant','session','stim_word','stim_color','corrAns',
+                                          'b_test','task_type','compatibility','switch',
+                                          'key_resp.keys','key_resp.corr','key_resp.rt','balance') )
+  ##Save the data after removing practice trials and the first trial of each block.
+  SS <- SS %>%  drop_na(c('b_test','compatibility'))
+  SS <- SS %>% filter(switch != 0 )
+  SS$switch[SS$switch==1] <- 'non_switch'
+  SS$switch[SS$switch==2] <- 'switch'
+  SS <- SS %>% mutate(count = 1:length(key_resp.rt),t_c = paste(task_type,compatibility,sep = '_'))
+  SS <- SS %>% group_by(participant) %>% mutate(task_con = ifelse(count==1,paste(t_c,t_c,sep = '_'),paste(lag(t_c),t_c,sep = '_')))
+  ## Save the data to the SS_clear_data folder.
+  store_csv = paste(dir,paste(fileid[i],"_clear.csv",sep = ''),sep = '/') 
+  write_csv(SS,path = store_csv,col_names = TRUE)
+  SS$key_resp.rt[is.na(SS$key_resp.rt)] <- 0
+  ### Begin calculating accuracy and reaction time by condition.
+  ## Calculate error rates for each condition.
+  SS_ER <- SS %>% group_by(participant,session,task_type,compatibility,switch) %>% summarise(
+    ER = mean(key_resp.corr)*100,
+    Count = sum(key_resp.corr)
+  )
+  ## Data after removing error trials.
+  # SS <- SS %>% mutate('ntrials'=1:384)
+  # SS1 <- SS %>% filter(key_resp.corr == 0)
+  # error_post <- SS1$ntrials+1
+  # SS <- filter(SS,!( ntrials %in% error_post))
+  ##
+  # Calculate the average RT after excluding data beyond three standard deviations from the mean.
+  SS_exclude <- SS %>% filter(key_resp.corr==1) %>% group_by(participant,session,task_type,compatibility,switch) %>% 
+    filter(abs(key_resp.rt-mean(key_resp.rt))<=sd(key_resp.rt)*3)
+  SS_exc_count <- SS_exclude %>% group_by(participant,session,task_type,compatibility,switch) %>% summarise(
+    Count = sum(key_resp.corr)
+  )
+  SS_RT <- SS_exclude %>% group_by(participant,session,task_type,compatibility,switch) %>% summarise(
+    mean_RT = mean(key_resp.rt*1000),
+    sd_RT = sd(key_resp.rt),
+    Count_RT = sum(key_resp.corr)
+  )
+  SS_ER_RT <- full_join(SS_ER,SS_RT,by=c('participant','session','task_type','compatibility','switch'))
+  ##Calculate the average RT after removing trials with errors and data beyond three standard deviations from the mean, and save the accuracy rates and average RT for each condition.
+  store_csv_condition = paste(dir2,paste(fileid[i],"_ER_RT.csv",sep = ''),sep = '/') 
+  write_csv(SS_ER_RT,path = store_csv_condition,col_names = TRUE)
+  print(i)}
+
+sumlist <- list.files(dir2,pattern = 'csv',full.name = TRUE
+                      , recursive = FALSE)
+x <- map_dfr(sumlist,~read_csv(.x))
+x %>% group_by(participant) %>% summarise(n = n())
+x$task_type[x$task_type=='颜色'] <- '1'
+x$task_type[x$task_type=='单词'] <- '2'
+x$compatibility[x$compatibility=='compatible'] <- '1'
+x$compatibility[x$compatibility=='incompatible'] <- '2'
+x$switch[x$switch=='non_switch'] <- '1'
+x$switch[x$switch=='switch'] <- '2'
+x1 <-x %>%  rename(A = task_type,B = compatibility,C = switch)
+x1 <- x1[-2]
+t_RT <- x1[-c(6,8,9)] %>% mutate(IES = mean_RT/ER,ER = 100 - ER)
+
+t <- t_RT %>% 
+  tidyr::pivot_wider(
+    names_from = c('A','B','C'),
+    values_from = c('mean_RT','ER','IES'),
+    names_glue = "A{A}B{B}C{C}_{.value}"
+  )
+sub <-unique(DCT$participant) 
+t_filter <- t %>% filter(participant %in% sub)
+result <- MANOVA(t, dvs="A2B1C1_mean_RT:A1B2C2_mean_RT", dvs.pattern="A(.)B(.)C(.)",
+       within=c("A", "B", "C"))
+result2 <- MANOVA(t, dvs="A2B1C1_ER:A1B2C2_ER", dvs.pattern="A(.)B(.)C(.)",
+       within=c("A", "B", "C"))
+result3 <- MANOVA(t, dvs="A2B1C1_IES:A1B2C2_IES", dvs.pattern="A(.)B(.)C(.)",
+       within=c("A", "B", "C"))
+# %>%
+#   EMMEANS(c("A", "C"), by="B") %>%
+#   EMMEANS(c("B", "C"), by="A") %>% 
+#   EMMEANS(c("A", "B"), by="C")
+
+plotx <- x %>% group_by( task_type,compatibility,switch) %>% summarise(RT = mean(mean_RT),sd_RT=sd(mean_RT)/sqrt(n()),ACC = mean(ER),sd_ACC=sd(ER)/sqrt(n()),IES = mean(mean_RT/ER),sd_IES=sd(mean_RT/ER)/sqrt(n()))
+plotx2 <- x %>% filter(participant %in% sub) %>% group_by( task_type,compatibility,switch) %>% summarise(RT = mean(mean_RT),sd_RT=sd(mean_RT)/sqrt(n()),ACC = mean(100-ER),sd_ACC=sd(100-ER)/sqrt(n()),IES = mean(mean_RT/ER),sd_IES=sd(mean_RT/ER)/sqrt(n()))
+
+plotx$switch[plotx$switch==1] <- 'repeat'
+plotx$switch[plotx$switch==2] <- 'switch'
+plotx$task_type[plotx$task_type==1] <- 'C'
+plotx$task_type[plotx$task_type==2] <- 'W'
+plotx$compatibility[plotx$compatibility==1] <- 'C'
+plotx$compatibility[plotx$compatibility==2] <- 'I'
+plotx <- plotx %>% mutate(WC = paste(task_type,compatibility,sep = ''))
+plotx2$switch[plotx2$switch==1] <- 'repeat'
+plotx2$switch[plotx2$switch==2] <- 'switch'
+plotx2$task_type[plotx2$task_type==1] <- 'C'
+plotx2$task_type[plotx2$task_type==2] <- 'W'
+plotx2$compatibility[plotx2$compatibility==1] <- 'C'
+plotx2$compatibility[plotx2$compatibility==2] <- 'I'
+plotx2 <- plotx2 %>% mutate(WC = paste(task_type,compatibility,sep = ''))
+
+x$switch[x$switch==1] <- 'repeat'
+x$switch[x$switch==2] <- 'switch'
+x$task_type[x$task_type==1] <- 'C'
+x$task_type[x$task_type==2] <- 'W'
+x$compatibility[x$compatibility==1] <- 'C'
+x$compatibility[x$compatibility==2] <- 'I'
+x <- x %>% mutate(WC = paste(task_type,compatibility,sep = ''),IES = mean_RT/ER)
+x2 <- x %>% filter(participant %in% sub)
+ggplot(x2, aes(x = interaction(WC, switch), y = mean_RT, fill = WC, color = WC)) +
+  # Add half - violin plots.
+  ggdist::stat_halfeye(adjust = 0.5,justification = -0.2,.width = 0,point_color = NA) +
+  # Add boxplots.
+  geom_boxplot(width = .1, alpha = 0.5,outlier.color = NA) +
+  # Add a scatter plot.
+  ggdist::stat_dots(side = 'left',justification = 1.1,binwidth = .03) +
+  # Adjust colors and fill.
+  scale_color_manual(values = c("#90BFD6",'#F99FB5',"#3C7FB1","#F58F96")) +
+  scale_fill_manual(values = c("#90BFD6",'#F99FB5',"#3C7FB1","#F58F96")) +    
+  # scale_y_continuous(limits = c(500,2000,400),
+  #                    breaks = seq(500,2000,400),
+  #                    labels = abs(seq(500,2000,400)))+
+  # Flip the axis for better visualization.
+ # coord_flip() +
+  # Set the theme.
+  theme_classic() +
+    theme(axis.text.x = element_text(size = 9),
+        axis.text.y = element_text(size = 16),
+        axis.line.x = element_line(linewidth = 1),
+        axis.line.y = element_line(linewidth  = 1),
+        legend.text = element_text(size = 18),
+        legend.title = element_text(size = 18),
+        axis.title = element_text(size = 18))+
+  theme(panel.grid = element_blank())
+ggsave('SS2RT_d.pdf',width = 2160,height = 1440,units = 'px')
+
+ggplot(plotx, aes(x = switch, y = RT,color  =WC,linetype = WC)) + #mean_RT
+  geom_line(aes(group = WC),position = position_dodge(width = 0.1),linewidth = 0.9) +
+  geom_point(position = position_dodge(width = 0.1),size = 3) +
+  geom_errorbar(linewidth = 0.7,aes(ymin = RT-sd_RT,ymax =RT+sd_RT ),width = 0.3,linewidth = 0.7,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+    scale_y_continuous(limits = c(800,1400,200),
+                     breaks = seq(800,1400,200),
+                     labels = abs(seq(800,1400,200)))
+ggsave('ssrt.pdf',width = 2160,height = 1440,units = 'px')
+ggplot(plotx, aes(x = switch, y = ACC,color  =WC,linetype = WC)) + #mean_RT
+  geom_line(aes(group = WC),position = position_dodge(width = 0.1),linewidth = 0.9) +
+  geom_point(position = position_dodge(width = 0.1),size = 3) +
+  geom_errorbar(aes(ymin = ACC-sd_ACC,ymax =ACC+sd_ACC ),width = 0.3,linewidth = 0.7,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+  ylim(80,100)
+ggsave('ssER.pdf',width = 2160,height = 1440,units = 'px')
+ggplot(plotx, aes(x = switch, y = IES,color  =WC,linetype = WC)) + #mean_RT
+  geom_line(aes(group = WC),position = position_dodge(width = 0.1),linewidth = 0.9) +
+  geom_point(position = position_dodge(width = 0.1),size = 3) +
+  geom_errorbar(aes(ymin = IES-sd_IES,ymax =IES+sd_IES ),width = 0.3,linewidth = 0.7,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+  ylim(8,16)
+ggsave('ssIES.pdf',width = 2160,height = 1440,units = 'px')
+
+
+ggplot(plotx2, aes(x = switch, y = RT,color  =WC,linetype = WC)) + #mean_RT
+  geom_line(aes(group = WC),position = position_dodge(width = 0.1),linewidth = 0.9) +
+  geom_point(position = position_dodge(width = 0.1),size = 3) +
+  geom_errorbar(linewidth = 0.7,aes(ymin = RT-sd_RT,ymax =RT+sd_RT ),width = 0.3,linewidth = 0.7,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+    scale_y_continuous(limits = c(800,1400,200),
+                     breaks = seq(800,1400,200),
+                     labels = abs(seq(800,1400,200)))
+ggsave('ssrt47.pdf',width = 2160,height = 1440,units = 'px')
+ggplot(plotx2, aes(x = switch, y = ACC,color  =WC,linetype = WC)) + #mean_RT
+  geom_line(aes(group = WC),position = position_dodge(width = 0.1),linewidth = 0.9) +
+  geom_point(position = position_dodge(width = 0.1),size = 3) +
+  geom_errorbar(aes(ymin = ACC-sd_ACC,ymax =ACC+sd_ACC ),width = 0.3,linewidth = 0.7,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+  ylim(0,20)
+ggsave('ssER47.pdf',width = 2160,height = 1440,units = 'px')
+ggplot(plotx2, aes(x = switch, y = IES,color  =WC,linetype = WC)) + #mean_RT
+  geom_line(aes(group = WC),position = position_dodge(width = 0.1),linewidth = 0.9) +
+  geom_point(position = position_dodge(width = 0.1),size = 3) +
+  geom_errorbar(aes(ymin = IES-sd_IES,ymax =IES+sd_IES ),width = 0.3,linewidth = 0.7,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+  ylim(8,17)
+ggsave('ssIES47.pdf',width = 2160,height = 1440,units = 'px')
+
+
+
+
+
+
+
+
+sumlist <- list.files(dir,pattern = 'csv',full.name = TRUE
+                      , recursive = FALSE)
+x <- map_dfr(sumlist,~read_csv(.x))
+ x$key_resp.rt[is.na(x$key_resp.rt)] <- 0
+ x$task_type[x$task_type=='颜色'] <- '1'
+x$task_type[x$task_type=='单词'] <- '2'
+x$compatibility[x$compatibility=='compatible'] <- '1'
+x$compatibility[x$compatibility=='incompatible'] <- '2'
+x$switch[x$switch=='non_switch'] <- '1'
+x$switch[x$switch=='switch'] <- '2'
+x <- x %>% filter(participant %in% sub)
+  ### Start calculating accuracy and reaction time by condition.
+  ## Calculate error rates by condition.
+  SS_ER <- x %>% group_by(participant,session,task_type,compatibility,switch) %>% summarise(
+    ER = mean(key_resp.corr)*100,
+    Count = sum(key_resp.corr)
+  )
+  # Calculate the average RT after excluding data beyond three standard deviations.
+    SS_exclude1 <- x %>% filter(participant %in% sub)%>% filter(key_resp.corr==1) #1-16682/18048
+  SS_exclude <- x %>%filter(participant %in% sub) %>%  filter(key_resp.corr==1) %>% group_by(participant,session,task_type,compatibility,switch) %>% 
+    filter(abs(key_resp.rt-mean(key_resp.rt))<=sd(key_resp.rt)*3) #1-16483/18048
+  SS_exc_count <- SS_exclude %>% group_by(participant,session,task_type,compatibility,switch) %>% summarise(
+    Count = sum(key_resp.corr)
+  )
+
+
+library(lme4)
+# m1 <-  lmer(mean_RT ~ switch + (1 | participant),SS_exclude)
+# summary(m1)
+# m1_coef <- coef(m1)
+# m1_ranef <- ranef(m1)
+# aaaa <- as_tibble(m1_ranef)
+# write_csv(aaaa,'D:/桌面/ET/R/SS_RIswitch.csv',col_names = TRUE)
+# m1 <-  lmer(mean_RT ~ compatibility*switch + (1 | participant),x2)
+# summary(m1)
+# m1_coef <- coef(m1)
+# m1_ranef <- ranef(m1)
+# aaaa <- as_tibble(m1_ranef)
+# write_csv(aaaa,'D:/桌面/ET/R/SS_RI_CS.csv',col_names = TRUE)
+# m1 <-  lmer(mean_RT ~task_type*compatibility*switch + (1 | participant),x2)
+# summary(m1)
+# m1_coef <- coef(m1)
+# m1_ranef <- ranef(m1)
+# aaaa <- as_tibble(m1_ranef)
+# write_csv(aaaa,'D:/桌面/ET/R/SS_RI_TCS.csv',col_names = TRUE)
+  
+  m1 <-  lmer(key_resp.rt ~ switch + (1 | participant),SS_exclude)
+summary(m1)
+m1_coef <- coef(m1)
+m1_ranef <- ranef(m1)
+aaaa <- as_tibble(m1_ranef)
+AIC(m1)
+BIC(m1)
+anova(m1)
+write_csv(aaaa,'D:/桌面/ET/R/SS_RIswitch.csv',col_names = TRUE)
+m1 <-  lmer(key_resp.rt ~ compatibility*switch + (1 | participant),SS_exclude)
+summary(m1)
+m1_coef <- coef(m1)
+m1_ranef <- ranef(m1)
+aaaa <- as_tibble(m1_ranef)
+AIC(m1)
+BIC(m1)
+anova(m1)
+write_csv(aaaa,'D:/桌面/ET/R/SS_RI_CS.csv',col_names = TRUE)
+m1 <-  lmer(key_resp.rt ~task_type*compatibility*switch + (1 | participant),SS_exclude)
+summary(m1)
+m1_coef <- coef(m1)
+m1_ranef <- ranef(m1)
+aaaa <- as_tibble(m1_ranef)
+AIC(m1)
+BIC(m1)
+anova(m1)
+write_csv(aaaa,'D:/桌面/ET/R/SS_RI_TCS.csv',col_names = TRUE)
+```
+```{r}
+## DCT_Simon
+rm(list = ls())
+dir <- setwd('D:/桌面/ET/R')
+dir <- getwd()
+dir <- paste(dir,'DCT_simon_clear_DATA',sep = '/')
+if (!dir.exists(dir)){
+  dir.create(dir)
+} else {
+  print("Dir already exists!")
+}
+
+dir2 <-  paste(dir,'DCT_condtion_ER_RT',sep = '/')
+method=c("DCT_condtion_ER_RT")
+for(sub_dir in method){
+  output_dir=file.path(dir,sub_dir)
+  #print(output_dir)
+  if (!dir.exists(output_dir)){
+    dir.create(output_dir)
+  } else {
+    print("Dir already exists!")
+  }
+}
+dir3 <-  paste(dir,'DCT_noFlanker_ER_RT',sep = '/')
+if (!dir.exists(dir3)){
+  dir.create(dir3)
+} else {
+  print("Dir already exists!")
+}
+files = list.files('E:\\Task\\renwumen\\psychopy\\DCT\\data',pattern = 'csv',full.name = TRUE
+                   , recursive = TRUE)
+
+fileid = str_extract_all(files,'(?<=/)([^_]+_){6}[^_]+')
+for (i in 1:length(files)){
+  DCT <- read_csv(files[i],col_select = c('participant','session','block_type','TrialNumber','FlankerConditionT1',
+                                         'LocationT1','DirectionT1','LocationConditionT1','CorrectAnswerT1','ImageT1','ImageT2',
+                                         'ConditionT1','IntervalT1toT2','FlankerConditionT2','LocationT2',
+                                         'DirectionT2','LocationConditionT2','CorrectAnswerT2','ConditionT2',
+                                         '注视点1','试次呈现时间+注视点2','注视点2','key_resp_T1.keys','key_resp_T1.started','key_resp_T2.started',
+                                         'key_resp_T1.corr','key_resp_T1.rt','key_resp_T2.keys','key_resp_T2.corr','key_resp_T2.rt') )
+  DCT <- DCT %>%  drop_na(c('FlankerConditionT1'))
+  DCT <- DCT %>% filter(block_type == 'test')
+  ## 
+  DCT <- DCT %>% mutate(count = 1:length(participant),FlankerCondition=case_when(
+    ImageT2=='Stim/Acon.png'~'C', TRUE~'I'
+  ))
+  DCT <- DCT %>% group_by(participant) %>% mutate(SOA_Inter = ifelse(count==1,paste(IntervalT1toT2,IntervalT1toT2,sep = '_'),paste(lag(IntervalT1toT2),IntervalT1toT2,sep = '_')))
+  ##Save data after removing practice trials.
+  store_csv = paste(dir,paste(fileid[i],"_clear.csv",sep = ''),sep = '/') 
+  write_csv(DCT,path = store_csv,col_names = TRUE)
+    ## Calculate error rates by condition: SOA\Flanker-T1 and T2.
+  DCT2 <- DCT %>%  mutate(key_resp_T1.corr =case_when(key_resp_T1.rt+key_resp_T1.started >= key_resp_T2.rt+key_resp_T2.started ~ 0,TRUE~key_resp_T1.corr),key_resp_T2.corr =case_when(key_resp_T1.rt+key_resp_T1.started >= key_resp_T2.rt+key_resp_T2.started ~ 0,TRUE~key_resp_T2.corr))
+  T1_ER <- DCT2 %>% group_by(participant,FlankerCondition,LocationConditionT1,LocationConditionT2,IntervalT1toT2) %>% summarise(
+    T1_ER= mean(key_resp_T1.corr)*100)
+  #   Count_T1 = sum(key_resp_T1.corr)
+  # )
+  T2_ER <- DCT2 %>% group_by(participant,FlankerCondition,LocationConditionT1,LocationConditionT2,IntervalT1toT2) %>% summarise(
+    T2_ER = mean(key_resp_T2.corr)*100)
+  
+    ER <- DCT2 %>% group_by(participant,LocationConditionT1,LocationConditionT2,IntervalT1toT2) %>% summarise(
+    T1_ER= mean(key_resp_T1.corr)*100,
+      T2_ER = mean(key_resp_T2.corr)*100)
+  
+  ##Remove trials where T2 responses occur before T1 responses.
+  DCT <- DCT %>% filter((key_resp_T1.rt+key_resp_T1.started)<(key_resp_T2.rt+key_resp_T2.started))
+
+  #   Count_T2 = sum(key_resp_T2.corr)
+  # )
+  ## Calculate the average RT after excluding trials where T2 responses occur before T1 responses and data beyond three standard deviations, selecting only trials where both tasks were correct.
+  DCT_exclude_T1 <- DCT %>% filter(key_resp_T1.corr==1,key_resp_T2.corr==1) %>% group_by(participant,FlankerCondition,LocationConditionT1,LocationConditionT2,IntervalT1toT2) %>% 
+    filter(abs(key_resp_T1.rt-mean(key_resp_T1.rt))<=sd(key_resp_T1.rt)*3,abs(key_resp_T2.rt-mean(key_resp_T2.rt))<=sd(key_resp_T2.rt)*3)
+  DCT_exclude_T2 <- DCT %>% filter(key_resp_T1.corr==1,key_resp_T2.corr==1) %>% group_by(participant,LocationConditionT1,LocationConditionT2,IntervalT1toT2) %>% 
+    filter(abs(key_resp_T1.rt-mean(key_resp_T1.rt))<=sd(key_resp_T1.rt)*3,abs(key_resp_T2.rt-mean(key_resp_T2.rt))<=sd(key_resp_T2.rt)*3)
+  # SS_exc_count <- SS_exclude %>% group_by(participant,task_type,compatibility,switch) %>% summarise(
+  #   Count = sum(key_resp.corr)
+  # )
+  T1_RT <- DCT_exclude_T1 %>% group_by(participant,FlankerCondition,LocationConditionT1,LocationConditionT2,IntervalT1toT2) %>% summarise(
+    T1_mean_RT = mean(key_resp_T1.rt)*1000)
+    # sd_RT_T1 = sd(key_resp_T1.rt),
+    # Count_RT_T1 = sum(key_resp_T1.corr)
+  
+  T2_RT <- DCT_exclude_T1 %>% group_by(participant,FlankerCondition,LocationConditionT1,LocationConditionT2,IntervalT1toT2) %>% summarise(
+    T2_mean_RT = mean(key_resp_T2.rt)*1000)
+  
+  RT <- DCT_exclude_T2 %>% group_by(participant,LocationConditionT1,LocationConditionT2,IntervalT1toT2) %>% summarise(T1_mean_RT = mean(key_resp_T1.rt)*1000,
+    T2_mean_RT = mean(key_resp_T2.rt)*1000)
+  
+  #   sd_RT_T2 = sd(key_resp_T2.rt),
+  #   Count_RT_T2 = sum(key_resp_T2.corr)
+  # )
+  T1_ER_RT <- full_join(T1_ER,T1_RT,by=c('participant','FlankerCondition','LocationConditionT1','LocationConditionT2','IntervalT1toT2'))
+  T2_ER_RT <- full_join(T2_ER,T2_RT,by=c('participant','FlankerCondition','LocationConditionT1','LocationConditionT2','IntervalT1toT2'))
+  # T1_ER_RT <-rename(T1_ER_RT,FlankerCondition = 'FlankerConditionT1')
+  # T2_ER_RT <-rename(T2_ER_RT,FlankerCondition = 'FlankerConditionT2')
+  T_ER_RT <- full_join(T1_ER_RT,T2_ER_RT,by=c('participant','FlankerCondition','LocationConditionT1','LocationConditionT2','IntervalT1toT2'))
+  
+  
+  ER_RT <- full_join(RT,ER,by=c('participant','LocationConditionT1','LocationConditionT2','IntervalT1toT2'))
+  ##Save accuracy rates by condition and average RT after removing data beyond three standard deviations.
+  store_csv_condition = paste(dir2,paste(fileid[i],"_ER_RT.csv",sep = ''),sep = '/') 
+  write_csv(T_ER_RT,path = store_csv_condition,col_names = TRUE)
+  print(i)
+}
+```
+```{r}
+sumlist <- list.files(dir2,pattern = 'csv',full.name = TRUE
+                      , recursive = TRUE)
+x <- map_dfr(sumlist,~read_csv(.x))
+DCT_Mix <- DCT_Mix %>% drop_na(grp)
+sub <-unique(DCT_Mix$grp)
+x1 <- x %>% filter(participant %in% sub)
+x1 <- x1 %>% rename(A = FlankerCondition,B = LocationConditionT1,C = LocationConditionT2,D = IntervalT1toT2)
+x1$B[x1$B=='congruent'] <- '1'
+x1$B[x1$B=='incongruent'] <- '2'
+x1$C[x1$C=='congruent'] <- '1'
+x1$C[x1$C=='incongruent'] <- '2'
+x1$D[x1$D=='100'] <- '1'
+x1$D[x1$D=='1000'] <- '2'
+x1$A[x1$A=='C'] <- '1'
+x1$A[x1$A=='I'] <- '2'
+t <- x1 %>% mutate(T1_IES=T1_mean_RT/T1_ER,T2_IES = T2_mean_RT/T2_ER)
+t_wider <- t %>% 
+  tidyr::pivot_wider(
+    names_from = c('A','B','C','D'),
+    values_from = c('T1_mean_RT','T1_ER','T2_mean_RT','T2_ER','T1_IES','T2_IES'),
+    names_glue = "A{A}B{B}C{C}D{D}_{.value}"
+  )
+result_T1RT <- MANOVA(t_wider, dvs="A1B1C1D1_T1_mean_RT:A2B2C2D2_T1_mean_RT", dvs.pattern="A(.)B(.)C(.)D(.)",
+                 within=c("A", "B", "C",'D'))
+result_T2RT <- MANOVA(t_wider, dvs="A1B1C1D1_T2_mean_RT:A2B2C2D2_T2_mean_RT", dvs.pattern="A(.)B(.)C(.)D(.)",
+                 within=c("A", "B", "C",'D'))
+result_T1ER <- MANOVA(t_wider, dvs="A1B1C1D1_T1_ER:A2B2C2D2_T1_ER", dvs.pattern="A(.)B(.)C(.)D(.)",
+                 within=c("A", "B", "C",'D'))
+result_T2ER <- MANOVA(t_wider, dvs="A1B1C1D1_T2_ER:A2B2C2D2_T2_ER", dvs.pattern="A(.)B(.)C(.)D(.)",
+                 within=c("A", "B", "C",'D'))
+result_T1IES <- MANOVA(t_wider, dvs="A1B1C1D1_T1_IES:A2B2C2D2_T1_IES", dvs.pattern="A(.)B(.)C(.)D(.)",
+                 within=c("A", "B", "C",'D'))
+result_T2IES <- MANOVA(t_wider, dvs="A1B1C1D1_T2_IES:A2B2C2D2_T2_IES", dvs.pattern="A(.)B(.)C(.)D(.)",
+                 within=c("A", "B", "C",'D'))
+x1$A[x1$A=='1'] <- 'C'
+x1$A[x1$A=='2'] <- 'I'
+x1$D[x1$D=='1'] <- '100ms'
+x1$D[x1$D=='2'] <- '1000ms'
+x1 <- x1 %>% mutate(Task_condition = paste(B,C,sep = ''),T1_IES = T1_mean_RT/T1_ER,T2_IES = T2_mean_RT/T2_ER)
+plotx <- x1 %>% group_by(A,Task_condition,D) %>% summarise(T1_RT = mean(T1_mean_RT),T1_sd_RT=sd(T1_mean_RT)/sqrt(n()),T1_ACC = mean(T1_ER),T1_sd_ACC = sd(T1_ER)/sqrt(n()),T2_RT = mean(T2_mean_RT),T2_sd_RT=sd(T2_mean_RT)/sqrt(n()),T2_ACC = mean(T2_ER),T2_sd_ACC = sd(T2_ER)/sqrt(n()),T1IES = mean(T1_IES),T1_sd_IES = sd(T1_IES)/sqrt(n()),T2IES = mean(T2_IES),T2_sd_IES = sd(T2_IES)/sqrt(n()))
+# plotx2 <- t %>% group_by(C,Task_condition) %>% summarise(T1_RT = mean(T1_mean_RT),T1_sd_RT=sd(T1_mean_RT),T1_ACC = mean(T1_ER),T1_sd_ACC = sd(T1_ER),T2_RT = mean(T2_mean_RT),T2_sd_RT=sd(T2_mean_RT),T2_ACC = mean(T2_ER),T2_sd_ACC = sd(T2_ER),T1_IES = mean(T1_IES),T1_sd_IES = sd(T1_IES),T2_IES = mean(T2_IES),T2_sd_IES = sd(T2_IES))
+
+as.character(plotx$D)
+plotx <- plotx %>% rename(SOA = C)
+view(plotx)
+
+
+ggplot(plotx, aes(x = D, y = T1_RT,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(linewidth = 0.7,aes(ymin = T1_RT-T1_sd_RT,ymax =T1_RT+T1_sd_RT ),width = 0.4,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+    scale_y_continuous(limits = c(500,1000,200),
+                     breaks = seq(500,1000,200),
+                     labels = abs(seq(500,1000,200)))+
+  facet_wrap(~A,scales = 'fixed')
+ggsave('simT1RT.pdf',width = 2160,height = 1440,units = 'px')
+
+ggplot(plotx, aes(x = D, y = T2_RT,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(linewidth = 0.7,aes(ymin = T2_RT-T2_sd_RT,ymax =T2_RT+T2_sd_RT ),width = 0.4,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+    scale_y_continuous(limits = c(400,1200,200),
+                     breaks = seq(400,1200,200),
+                     labels = abs(seq(400,1200,200)))+
+  facet_wrap(~A,scales = 'fixed')
+ggsave('simT2RT.pdf',width = 2160,height = 1440,units = 'px')
+
+
+
+
+
+
+
+ggplot(plotx, aes(x = SOA, y = T1_ACC,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(aes(ymin = T1_ACC-T1_sd_ACC,ymax =T1_ACC+T1_sd_ACC ),width = 0.3,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+  ylim(0,14)
+ggsave('T1ER.pdf',width = 2160,height = 1440,units = 'px')
+ggplot(plotx, aes(x = SOA, y = T1IES,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(aes(ymin = T1IES-T1_sd_IES,ymax =T1IES+T1_sd_IES ),width = 0.3,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+  ylim(4,17)
+ggsave('T1IES.pdf',width = 2160,height = 1440,units = 'px')
+ggplot(plotx, aes(x = SOA, y = T2_RT,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(linewidth = 0.7,aes(ymin = T2_RT-T2_sd_RT,ymax =T2_RT+T2_sd_RT ),width = 0.4,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+    scale_y_continuous(limits = c(400,1300,200),
+                     breaks = seq(400,1300,200),
+                     labels = abs(seq(400,1300,200)))
+ggsave('T2RT.pdf',width = 2160,height = 1440,units = 'px')
+
+ggplot(plotx, aes(x = SOA, y = T2_ACC,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(aes(ymin = T2_ACC-T2_sd_ACC,ymax =T2_ACC+T2_sd_ACC ),width = 0.3,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid', 'dashed', 'solid', 'dashed'))+
+  ylim(0,14)
+ggsave('T2ER.pdf',width = 2160,height = 1440,units = 'px')
+ggplot(plotx, aes(x = SOA, y = T2IES,color  =Task_condition,linetype = Task_condition)) + #mean_RT
+  geom_line(aes(group = Task_condition),position = position_dodge(width = 0.1),linewidth = 0.7) +
+  geom_point(position = position_dodge(width = 0.1),size = 2) +
+  geom_errorbar(aes(ymin = T2IES-T2_sd_IES,ymax =T2IES+T2_sd_IES ),width = 0.3,position = position_dodge(width = 0.1))+
+  theme_classic()+
+  scale_color_manual(values=c('black', 'grey','black',  'grey')) +
+  scale_linetype_manual(values=c('solid','solid', 'dashed',  'dashed'))+
+  ylim(4,15)
+ggsave('T2IES.pdf',width = 2160,height = 1440,units = 'px')
+
+
+
+## Then conduct the Simon effect analysis disregarding FLANKER.
+
+```
+sss <- read_excel("sss.xlsx")
+```{r}
+library(readr)
+SS_RIswitch <- read_csv("SS_RIswitch.csv")
+  SS_RI_TCS <- read_csv('SS_RI_TCS.csv')
+  SS_RI_CS <- read_csv('SS_RI_CS.csv')
+  DCT_RI_ABC <- read_csv('DCT_randIntercept.csv')
+  Mix <- SS_RI_CS %>% full_join(SS_RI_TCS,by='grp') %>% full_join(DCT_RI_ABC,by='grp') 
+ Mix <-  Mix%>% bind_cols(SS_RIswitch)
+write_csv(Mix,'Mix.csv')
+ DCT_Mix <- read_csv('Mix.csv')
+# DCT_Mix <- DCT_Mix %>% drop_na(grp)
+dir <- paste('D:/桌面/ET/R','MFTM_A_DATA',sep = '/')
+# dir2 <-  paste('D:/桌面/ET/R/ANT_DATA','Total',sep = '/')
+# dir3 <-  paste('D:/桌面/ET/R/Go_DATA','Total',sep = '/')
+dir4 <-  paste('D:/桌面/ET/R/N_back_DATA','Total',sep = '/')
+
+sumlist1 <- list.files(dir,pattern = 'csv',full.name = TRUE
+                      , recursive = FALSE)
+# sumlist2 <- list.files(dir2,pattern = 'csv',full.name = TRUE
+#                       , recursive = FALSE)
+# sumlist3 <- list.files(dir3,pattern = 'csv',full.name = TRUE
+#                       , recursive = FALSE)
+sumlist4 <- list.files(dir4,pattern = 'csv',full.name = TRUE
+                      , recursive = FALSE)
+MFTM  <- map_dfr(sumlist1,~read_csv(.x))
+# ANT  <- map_dfr(sumlist2,~read_csv(.x))
+# Go  <- map_dfr(sumlist3,~read_csv(.x))
+MFTM <- MFTM %>% filter(session==1,ntrials==120)
+N_BACK  <- map_dfr(sumlist4,~read_csv(.x))
+N_BACK1 <- N_BACK[-c(4,7)]
+N_BACK2 <- N_BACK1 %>% pivot_wider(
+  names_from = back,
+  values_from = c(mean_rt,Total_mean_cor,Total_mean_rt),
+  names_glue = 'b{back}_{.value}'
+)
+N_BACK2 <- N_BACK2 %>% mutate(back20 = b2_Total_mean_cor-b0_Total_mean_cor,back21 = b2_Total_mean_cor-b1_Total_mean_cor,back10 = b1_Total_mean_cor-b0_Total_mean_cor)
+C_N <-N_BACK2 %>% full_join(MFTM,by = 'participant') %>% filter(participant %in% Mix$grp) 
+write_csv(C_N,'exp2_M_N.csv')
+# 手动命名了
+
+
+library(readxl)
+exp2 <- read_excel("exp2.xlsx")
+Y <- round(cor(exp2),3)
+p <- cor_pmat(exp2)
+ggcorrplot(Y,hc.order = F,  #Reorder the matrix based on hierarchical clustering.
+           ggtheme = ggplot2::theme_void(base_size = 15), #Modify the theme.
+           colors = c("CornflowerBlue","white","Salmon"), #Customize colors.
+           lab = F,lab_size = 5,    #Adjust the font size of the correlation coefficient text.
+           tl.cex = 15,             #Axis tick font size.
+           p.mat = p,         #Add significance information.
+           sig.level = 0.05,        #Significance level.
+      #     pch = 10,                 #Mark insignificant color blocks; pch indicates different marking methods. You can try different numbers to see what marking methods they represent.
+          # pch.cex = 10,
+      insig = "blank",
+           type = 'upper')   
+ggsave('exp2cor.pdf',width = 4000,height = 4500,units = 'px')
+desc_table2 <- Describe(exp2)
+```

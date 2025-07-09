@@ -1,0 +1,29 @@
+
+The "raw data of study 1" folder contains the original data of MFTM_A for 46 participants, with each participant having two data files. 
+
+The "raw data of study 2" folder includes the original data of the Attention Network Test, Spatial N - Back task, and Go/No - Go task for 46 participants.
+
+The "raw data of study 3" folder comprises the original data of the MFTM_A120 trials version, DCT task, Stroop - Switch task, and Spatial N - Back task for 47 participants.
+
+
+
+The code for study1 and study2:
+
+1.Data cleaning: Cleans data for different experimental tasks (MFTM - A, ANT, GO - NOGO, n - back). Removes invalid trials (e.g., trials with no key presses), resets trials with multiple key presses, and excludes outliers beyond three standard deviations. Calculates key metrics like total accuracy, average RT, and error rates. Transforms data for subsequent analysis.
+
+2.Single - task analysis: Analyzes each task separately, computing task - specific metrics such as hit rates, false alarm rates, and attention network effects.
+
+3.Cross - task analysis: Combines and analyzes data from different tasks.
+
+4.Plotting: Generates various plots (line charts, bar charts, scatter plots, correlation matrices) to visualize data distributions, trends, and relationships.
+
+
+
+The code for study3:
+
+1.Data loading and cleaning: Loads experimental data from designated folders. Removes invalid trials (e.g., trials with missing key presses), handles outliers (e.g., data beyond three standard deviations), and recodes data (e.g., converting character data to numerical).
+
+2.Data calculation and transformation: Calculates error rates, average RT, and other relevant metrics (e.g., Simon effect, Stroop effect) for each experimental condition. Reshapes data for analysis.
+
+3.Data analysis and plotting: Conducts independent analyses for each experimental task. Combines data from different tasks for comprehensive analysis, calculates correlations, and performs statistical analyses using MANOVA and linear mixed - effects models (lmer). Creates various plots (line charts, bar charts, boxplots, violin plots) to display data distributions, trends, and relationships.
+
